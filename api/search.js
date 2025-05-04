@@ -1,6 +1,6 @@
 // src/api/search.js
 
-const axios = require('axios')
+const axios = require('axios')  
 const { Configuration, OpenAIApi } = require('openai')
 
 // ─────────────────────────────────────────────────────────────────────────────
