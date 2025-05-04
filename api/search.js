@@ -37,7 +37,9 @@ module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS')
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
-  if (req.method === 'OPTIONS') return res.status(200).end()
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end()
+  }
 
   const { query = '', page = 1, per_page = 16 } = req.query
   if (!query.trim()) {
@@ -45,9 +47,9 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    // 1) Reformulation via GPT-4
+    // 1) Reformulation via GPT-3.5-turbo
     const chat = await openai.chat.completions.create({
-      model: 'gpt-4',
+      model: 'gpt-3.5-turbo',
       messages: [
         {
           role: 'system',
