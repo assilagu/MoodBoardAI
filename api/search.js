@@ -2,7 +2,7 @@
 
 const axios = require('axios')
 const { Configuration, OpenAIApi } = require('openai')
-
+ 
 // ─────────────────────────────────────────────────────────────────────────────
 // Setup OpenAI & Unsplash clients
 // ─────────────────────────────────────────────────────────────────────────────
