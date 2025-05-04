@@ -1,12 +1,12 @@
 // src/api/search.js
 
-const axios = require('axios')  
+const axios = require('axios')
 const { Configuration, OpenAIApi } = require('openai')
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Setup OpenAI & Unsplash clients
 // ─────────────────────────────────────────────────────────────────────────────
-const openai = new OpenAIApi( 
+const openai = new OpenAIApi(
   new Configuration({ apiKey: process.env.OPENAI_API_KEY })
 )
 
@@ -22,9 +22,9 @@ const unsplash = axios.create({
 function cosine(a, b) {
   let dot = 0, magA = 0, magB = 0
   for (let i = 0; i < a.length; i++) {
-    dot   += a[i] * b[i]
-    magA  += a[i] * a[i]
-    magB  += b[i] * b[i]
+    dot  += a[i] * b[i]
+    magA += a[i] * a[i]
+    magB += b[i] * b[i]
   }
   return magA && magB ? dot / (Math.sqrt(magA) * Math.sqrt(magB)) : 0
 }
@@ -45,8 +45,8 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    // 1) Reformulate & enrich with GPT-4
-    const chat = await openai.chat.completions.create({
+    // 1) Reformuler & enrichir la requête avec GPT-4
+    const chat = await openai.createChatCompletion({
       model: 'gpt-4',
       messages: [
         {
@@ -59,9 +59,9 @@ module.exports = async function handler(req, res) {
       temperature: 0.7,
       max_tokens: 32
     })
-    const refinedQuery = chat.choices[0].message.content.trim()
+    const refinedQuery = chat.data.choices[0].message.content.trim()
 
-    // 2) Fetch from Unsplash
+    // 2) Récupérer les images depuis Unsplash (order_by=relevant)
     const usRes = await unsplash.get('/search/photos', {
       params: {
         query:     refinedQuery,
@@ -75,45 +75,39 @@ module.exports = async function handler(req, res) {
       return res.status(200).json({ results: [], refinedQuery })
     }
 
-    // 3) Embed refinedQuery once with CLIP
-    const embedPrompt = await openai.embeddings.create({
+    // 3) Embedding CLIP pour la requête une seule fois
+    const embedPrompt = await openai.createEmbedding({
       model: 'clip',
       input: refinedQuery
     })
-    const promptVec = embedPrompt.data[0].embedding
+    const promptVec = embedPrompt.data.data[0].embedding
 
-    // 4) For each image, embed its description via CLIP & score similarity
-    const scored = await Promise.all(
-      images.map(async img => {
-        const text = img.alt_description
-          || img.description
-          || img.user.username
-          || ''
-        let relevance = 0
-
-        try {
-          const embedImg = await openai.embeddings.create({
-            model: 'clip',
-            input: text
-          })
-          const imgVec = embedImg.data[0].embedding
-          relevance = cosine(promptVec, imgVec)
-        } catch (e) {
-          // fallback to zero if embedding fails
-          relevance = 0
-        }
-
-        return { ...img, relevance }
-      })
+    // 4) Embedding CLIP groupé pour les descriptions
+    const texts = images.map(img =>
+      img.alt_description ||
+      img.description ||
+      img.user.username ||
+      ''
     )
+    const embedImgs = await openai.createEmbedding({
+      model: 'clip',
+      input: texts
+    })
 
-    // 5) Filter & sort by relevance, take top-N
+    // 5) Calculer la similarité et construire le tableau annoté
+    const scored = images.map((img, idx) => {
+      const imgVec = embedImgs.data.data[idx].embedding
+      const relevance = cosine(promptVec, imgVec)
+      return { ...img, relevance }
+    })
+
+    // 6) Filtrer & trier puis limiter à `per_page`
     const filtered = scored
       .filter(img => img.relevance >= 0.25)
       .sort((a, b) => b.relevance - a.relevance)
       .slice(0, per_page)
 
-    // 6) Return
+    // 7) Renvoyer
     return res.status(200).json({ results: filtered, refinedQuery })
   } catch (err) {
     console.error('🔍 /api/search error:', err)
