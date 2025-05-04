@@ -2,7 +2,7 @@
 
 const axios = require('axios')
 const {
-  hexToRgb, rgbToHsl,
+  hexToRgb, rgbToHsl, 
   filterSimilarColors, rebalanceVibrance
 } = require('../src/utils/colorUtils')
 
