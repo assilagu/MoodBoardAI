@@ -4,12 +4,11 @@ const axios = require('axios')
 const { OpenAI } = require('openai')
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Setup OpenAI & Unsplash clients
+// Clients OpenAI & Unsplash
 // ─────────────────────────────────────────────────────────────────────────────
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 })
-
 const unsplash = axios.create({
   baseURL: 'https://api.unsplash.com',
   headers: { Authorization: `Client-ID ${process.env.UNSPLASH_KEY}` },
@@ -17,7 +16,7 @@ const unsplash = axios.create({
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Helper: cosine similarity between two vectors
+// Similarité cosinus entre deux vecteurs
 // ─────────────────────────────────────────────────────────────────────────────
 function cosine(a, b) {
   let dot = 0, magA = 0, magB = 0
@@ -30,41 +29,43 @@ function cosine(a, b) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// API Route Handler
+// Route /api/search
 // ─────────────────────────────────────────────────────────────────────────────
 module.exports = async function handler(req, res) {
   // CORS
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS')
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end()
-  }
+  if (req.method === 'OPTIONS') return res.status(200).end()
 
   const { query = '', page = 1, per_page = 16 } = req.query
   if (!query.trim()) {
     return res.status(400).json({ error: 'Missing "query" parameter.' })
   }
 
+  let refinedQuery = query
+
+  // 1) Tentative de reformulation OpenAI
   try {
-    // 1) Reformulation via GPT-3.5-turbo
     const chat = await openai.chat.completions.create({
       model: 'gpt-3.5-turbo',
       messages: [
-        {
-          role: 'system',
-          content:
-            'You are an expert at crafting image search queries for Unsplash. ' +
-            'Rewrite the user’s search term to maximize relevance and clarity.'
-        },
+        { role: 'system', content:
+          'You are an expert at crafting image search queries for Unsplash. ' +
+          'Rewrite the user’s search term to maximize relevance and clarity.' },
         { role: 'user', content: `Search term: "${query}"` }
       ],
       temperature: 0.7,
       max_tokens: 32
     })
-    const refinedQuery = chat.choices[0].message.content.trim()
+    refinedQuery = chat.choices[0].message.content.trim() || query
+  } catch (err) {
+    console.warn('⚠️ OpenAI reformulation failed, falling back to raw query:', err.code || err.message)
+  }
 
-    // 2) Appel à Unsplash avec la requête enrichie
+  // 2) Recherche Unsplash
+  let images = []
+  try {
     const usRes = await unsplash.get('/search/photos', {
       params: {
         query:     refinedQuery,
@@ -73,19 +74,27 @@ module.exports = async function handler(req, res) {
         order_by: 'relevant'
       }
     })
-    const images = usRes.data.results
-    if (!images.length) {
-      return res.status(200).json({ results: [], refinedQuery })
-    }
+    images = usRes.data.results || []
+  } catch (err) {
+    console.error('❌ Unsplash fetch failed:', err.message || err)
+    return res.status(502).json({ error: 'Unsplash fetch failed.' })
+  }
 
-    // 3) Embedding ADA pour la requête (une seule fois)
+  // Si aucune image, on renvoie vite fait
+  if (images.length === 0) {
+    return res.status(200).json({ results: [], refinedQuery })
+  }
+
+  // 3) Tentative de scoring par CLIP (groupé)
+  try {
+    // 3a) Embedding de la requête
     const embedQ = await openai.embeddings.create({
       model: 'text-embedding-ada-002',
       input: refinedQuery
     })
     const promptVec = embedQ.data[0].embedding
 
-    // 4) Embedding CLIP groupé des descriptions d’images
+    // 3b) Embedding groupé des descriptions
     const texts = images.map(img =>
       img.alt_description ||
       img.description ||
@@ -97,24 +106,24 @@ module.exports = async function handler(req, res) {
       input: texts
     })
 
-    // 5) Calcul de similarité et annotation
+    // 4) Calcul similarité et annotation
     const scored = images.map((img, idx) => {
       const imgVec    = embedImgs.data[idx].embedding
       const relevance = cosine(promptVec, imgVec)
       return { ...img, relevance }
     })
 
-    // 6) Filtrage, tri et top-N
-    const filtered = scored
+    // 5) Filtre, tri, top-N
+    images = scored
       .filter(img => img.relevance >= 0.25)
       .sort((a, b) => b.relevance - a.relevance)
       .slice(0, per_page)
 
-    // 7) Renvoi des résultats
-    return res.status(200).json({ results: filtered, refinedQuery })
-
   } catch (err) {
-    console.error('🔍 /api/search error:', err)
-    return res.status(500).json({ error: 'Internal error during search.' })
+    console.warn('⚠️ CLIP scoring failed, returning raw Unsplash results:', err.code || err.message)
+    // On laisse `images` tel quel
   }
+
+  // 6) On renvoie
+  return res.status(200).json({ results: images, refinedQuery })
 }
