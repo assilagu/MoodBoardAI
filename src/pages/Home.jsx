@@ -1,4 +1,3 @@
-// src/pages/Home.jsx
 import React, { useState, useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
 
@@ -20,18 +19,17 @@ import { generateMixedPalette } from '../utils/paletteGenerator'
 import { container, fadeInUp }  from '../utils/animations'
 
 export default function Home() {
-  const [keyword, setKeyword]                  = useState('')
-  const [page, setPage]                        = useState(1)
-  const [editablePalette, setEditablePalette]  = useState([])
-  const [selectedFont, setSelectedFont]        = useState('')
-  // ── Nouvel état pour la sélection des images
-  const [selectedImages, setSelectedImages]    = useState([])
+  const [keyword, setKeyword]                 = useState('')
+  const [page, setPage]                       = useState(1)
+  const [editablePalette, setEditablePalette] = useState([])
+  const [selectedFont, setSelectedFont]       = useState('')
+  const [selectedImages, setSelectedImages]   = useState([])
 
-  const { images, loading, error, refetch }     = useImages(keyword, page, 16)
+  const { images, loading, error, refetch }   = useImages(keyword, page, 16)
   const { fonts, isLoading: fontsLoading, error: fontsError } = useFonts()
   const pdfRef = useRef(null)
 
-  // 70% thème / 30% images mix + initialisation editablePalette
+  // Génération palette éditable
   useEffect(() => {
     if (!keyword || images.length === 0) {
       setEditablePalette([])
@@ -54,7 +52,7 @@ export default function Home() {
     setKeyword(kw)
     setPage(1)
     setEditablePalette([])
-    setSelectedImages([])        // reset sélection à chaque nouvelle recherche
+    setSelectedImages([])        // reset sélection
   }
   const suggestions = ['cyberpunk', 'cosy winter', 'coffee workspace', 'minimal']
 
@@ -64,7 +62,7 @@ export default function Home() {
     setEditablePalette(copy)
   }
 
-  // ── Fonction utilitaire pour basculer la sélection d'une image
+  // Toggle sélection d'une image
   function toggleImageSelection(img) {
     setSelectedImages(prev => {
       const exists = prev.find(i => i.id === img.id)
@@ -73,7 +71,7 @@ export default function Home() {
     })
   }
 
-  // ── Booléen qui indique si le minimum de 9 images est atteint
+  // Minimum 9, maximum 20 (max géré dans le compteur)
   const canExport = selectedImages.length >= 9
 
   return (
@@ -91,13 +89,9 @@ export default function Home() {
       <div
         ref={pdfRef}
         style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          width: 1024,
-          opacity: 0,
-          pointerEvents: 'none',
-          zIndex: -1
+          position: 'fixed', top: 0, left: 0,
+          width: 1024, opacity: 0,
+          pointerEvents: 'none', zIndex: -1
         }}
       >
         <MoodboardPdf
@@ -108,23 +102,22 @@ export default function Home() {
         />
       </div>
 
-      {/* Sidebar (desktop) */}
+      {/* Sidebar desktop */}
       <aside className="hidden lg:block sticky top-0 p-6 space-y-6 bg-white dark:bg-gray-900 shadow-lg">
         <SearchBar onSearch={handleSearch} />
-
         <div className="flex flex-wrap gap-2">
           {suggestions.map(tag => (
             <button
               key={tag}
               onClick={() => handleSearch(tag)}
               className="px-3 py-1 bg-bleu-ciel dark:bg-violet-profond text-sm rounded-full hover:bg-menthe-pastel dark:hover:bg-rose-fume transition"
-              aria-label={`Suggestion ${tag}`}
             >
               {tag}
             </button>
           ))}
         </div>
 
+        {/* Typographie */}
         <details className="bg-gray-50 dark:bg-gray-800 p-4 rounded shadow" open>
           <summary className="cursor-pointer font-semibold text-gray-800 dark:text-gray-100">
             Typographie
@@ -143,6 +136,7 @@ export default function Home() {
           </motion.div>
         </details>
 
+        {/* Palette */}
         <details className="bg-gray-50 dark:bg-gray-800 p-4 rounded shadow" open>
           <summary className="cursor-pointer font-semibold text-gray-800 dark:text-gray-100">
             Palette de couleurs
@@ -167,9 +161,11 @@ export default function Home() {
         />
       </aside>
 
-      {/* Main (mobile accordions + grid) */}
+      {/* Main mobile + grid */}
       <main className="p-6 space-y-8">
+        {/* accordions mobile */}
         <div className="space-y-6 lg:hidden">
+          {/* Typographie */}
           <details className="bg-gray-50 dark:bg-gray-800 p-4 rounded shadow">
             <summary className="cursor-pointer font-semibold text-gray-800 dark:text-gray-100">
               Typographie
@@ -188,6 +184,7 @@ export default function Home() {
             </motion.div>
           </details>
 
+          {/* Palette */}
           <details className="bg-gray-50 dark:bg-gray-800 p-4 rounded shadow" open>
             <summary className="cursor-pointer font-semibold text-gray-800 dark:text-gray-100">
               Palette de couleurs
@@ -222,13 +219,11 @@ export default function Home() {
         {error && <ErrorMessage onRetry={refetch} />}
         {!loading && !error && keyword && images.length === 0 && <NoResults keyword={keyword} />}
 
-        {/* Sélection counter */}
+        {/* Compteur */}
         <SelectionCounter count={selectedImages.length} min={9} max={20} />
 
-        <motion.div
-          variants={fadeInUp}
-          className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-6"
-        >
+        {/* Grille */}
+        <motion.div variants={fadeInUp} className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-6">
           {images.map(img => {
             const isSelected = selectedImages.some(i => i.id === img.id)
             return (
@@ -249,7 +244,6 @@ export default function Home() {
               onClick={() => setPage(p => p + 1)}
               disabled={loading}
               className="px-6 py-2 bg-bleu-ciel rounded hover:bg-menthe-pastel transition focus:outline-none focus:ring-2 focus:ring-bleu-ciel"
-              aria-label="Charger plus d’images"
             >
               {loading ? 'Chargement…' : 'Charger plus'}
             </button>
