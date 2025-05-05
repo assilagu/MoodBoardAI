@@ -14,6 +14,7 @@ import useFonts              from '../hooks/useFonts'
 import FontSelector          from '../components/FontSelector'
 import TypographyDisplay     from '../components/TypographyDisplay'
 import ExportButton          from '../components/ExportButton'
+import SelectionCounter      from '../components/SelectionCounter'
 
 import { generateMixedPalette } from '../utils/paletteGenerator'
 import { container, fadeInUp }  from '../utils/animations'
@@ -23,6 +24,8 @@ export default function Home() {
   const [page, setPage]                        = useState(1)
   const [editablePalette, setEditablePalette]  = useState([])
   const [selectedFont, setSelectedFont]        = useState('')
+  // ── Nouvel état pour la sélection des images
+  const [selectedImages, setSelectedImages]    = useState([])
 
   const { images, loading, error, refetch }     = useImages(keyword, page, 16)
   const { fonts, isLoading: fontsLoading, error: fontsError } = useFonts()
@@ -51,6 +54,7 @@ export default function Home() {
     setKeyword(kw)
     setPage(1)
     setEditablePalette([])
+    setSelectedImages([])        // reset sélection à chaque nouvelle recherche
   }
   const suggestions = ['cyberpunk', 'cosy winter', 'coffee workspace', 'minimal']
 
@@ -59,6 +63,18 @@ export default function Home() {
     copy[index] = { ...copy[index], hex: { value: hex } }
     setEditablePalette(copy)
   }
+
+  // ── Fonction utilitaire pour basculer la sélection d'une image
+  function toggleImageSelection(img) {
+    setSelectedImages(prev => {
+      const exists = prev.find(i => i.id === img.id)
+      if (exists) return prev.filter(i => i.id !== img.id)
+      return [...prev, img]
+    })
+  }
+
+  // ── Booléen qui indique si le minimum de 9 images est atteint
+  const canExport = selectedImages.length >= 9
 
   return (
     <motion.div
@@ -73,7 +89,7 @@ export default function Home() {
     >
       {/* Off-screen PDF */}
       <div
-        ref={pdfRef}                                       
+        ref={pdfRef}
         style={{
           position: 'fixed',
           top: 0,
@@ -88,7 +104,7 @@ export default function Home() {
           keyword={keyword}
           selectedFont={selectedFont}
           palette={editablePalette}
-          images={images}
+          images={selectedImages.length > 0 ? selectedImages : images}
         />
       </div>
 
@@ -147,6 +163,7 @@ export default function Home() {
         <ExportButton
           targetRef={pdfRef}
           filename={`moodboard-${keyword || 'export'}.pdf`}
+          disabled={!canExport}
         />
       </aside>
 
@@ -171,7 +188,7 @@ export default function Home() {
             </motion.div>
           </details>
 
-          <details className="bg-gray-50 dark:bg-gray-800 p-4 rounded shadow">
+          <details className="bg-gray-50 dark:bg-gray-800 p-4 rounded shadow" open>
             <summary className="cursor-pointer font-semibold text-gray-800 dark:text-gray-100">
               Palette de couleurs
             </summary>
@@ -191,6 +208,7 @@ export default function Home() {
           <ExportButton
             targetRef={pdfRef}
             filename={`moodboard-${keyword || 'export'}.pdf`}
+            disabled={!canExport}
           />
         </div>
 
@@ -204,18 +222,25 @@ export default function Home() {
         {error && <ErrorMessage onRetry={refetch} />}
         {!loading && !error && keyword && images.length === 0 && <NoResults keyword={keyword} />}
 
+        {/* Sélection counter */}
+        <SelectionCounter count={selectedImages.length} min={9} max={20} />
+
         <motion.div
           variants={fadeInUp}
           className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-6"
         >
-          {images.map(img => (
-            <motion.div key={img.id} whileHover={{ scale: 1.02 }}>
-              <ImageCard
-                image={img}
-                onClick={() => window.open(img.links.html, '_blank')}
-              />
-            </motion.div>
-          ))}
+          {images.map(img => {
+            const isSelected = selectedImages.some(i => i.id === img.id)
+            return (
+              <motion.div key={img.id} whileHover={{ scale: 1.02 }}>
+                <ImageCard
+                  image={img}
+                  onClick={() => toggleImageSelection(img)}
+                  selected={isSelected}
+                />
+              </motion.div>
+            )
+          })}
         </motion.div>
 
         {images.length > 0 && (

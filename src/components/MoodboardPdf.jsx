@@ -9,7 +9,7 @@ import PropTypes from 'prop-types'
  * • Fond : blanc propre
  * • Header : mot-clé + typo (si sélectionnée)
  * • Palette : 8 swatches centrés, encadrés et en relief
- * • Grille : 16 images en 4×4, espacement uniforme et ombre de levitation
+ * • Grille : images disposées dans une grille fluide responsive, ombre de levitation
  */
 export default function MoodboardPdf({
   keyword,
@@ -78,11 +78,12 @@ export default function MoodboardPdf({
         ))}
       </div>
 
-      {/* Images grid 4×4 */}
+      {/* Images grid fluid */}
       <section
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(4, 1fr)',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
+          gridAutoRows: '240px',
           gap: '16px'
         }}
       >
@@ -103,7 +104,8 @@ export default function MoodboardPdf({
               alt={img.alt_description || `Image ${idx + 1}`}
               style={{
                 width: '100%',
-                height: 'auto',
+                height: '100%',
+                objectFit: 'cover',
                 display: 'block'
               }}
             />
