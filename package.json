@@ -9,7 +9,6 @@
     "@testing-library/user-event": "^13.5.0",
     "axios": "^1.8.4",
     "openai": "^4.7.0",
-    "lucide-react": "^0.278.0",
     "framer-motion": "^12.7.4",
     "html2canvas": "^1.4.1",
     "jspdf": "^3.0.1",
